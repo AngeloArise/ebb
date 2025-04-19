@@ -1,12 +1,56 @@
 import { FaHeart, FaBrain, FaUsers, FaGift, FaExclamationTriangle, FaCalendarAlt, FaPhone, FaGlobe, FaMapMarkerAlt, FaUser, FaLock, FaEnvelope, FaLocationArrow } from 'react-icons/fa';
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import EbbointsJournalingSection from './components/EbbointsJournalingSection';
 import WellnessFeaturesSection from './components/WellnessFeaturesSection';
+import AuthForm from './components/AuthForm';
+import Dashboard from './components/Dashboard';
+import { supabase } from './lib/supabaseClient';
 
-const App = () => {
-  const [showSOSModal, setShowSOSModal] = useState(false);
-  const [showSignUpModal, setShowSignUpModal] = useState(false);
-  const [isSignIn, setIsSignIn] = useState(false);
+// Protected Route component
+const ProtectedRoute = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    // Redirect to home page but save the attempted location
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  return children;
+};
+
+// Landing page component
+const LandingPage = ({ showAuthModal, setShowAuthModal, showSOSModal, setShowSOSModal, handleLogout, isAuthenticated }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [collegeInfo, setCollegeInfo] = useState({
     name: "Your College",
@@ -101,185 +145,7 @@ const App = () => {
   ];
 
   return (
-    <div className="min-h-screen">
-      {/* Navigation */}
-      <nav className="fixed w-full bg-white/80 backdrop-blur-sm z-50 border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="text-2xl font-bold text-primary-600">Ebb</div>
-            <div className="hidden md:flex space-x-8">
-              <a href="#features" className="text-gray-600 hover:text-primary-600">Features</a>
-              <a href="#wellness-features" className="text-gray-600 hover:text-primary-600">Hobbies</a>
-              <a href="#events" className="text-gray-600 hover:text-primary-600">Events</a>
-              <a href="#ebboints-journaling" className="text-gray-600 hover:text-primary-600">Ebboints</a>
-              <a href="#faq" className="text-gray-600 hover:text-primary-600">FAQ</a>
-            </div>
-            <div className="flex items-center space-x-4">
-              <button 
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center"
-                onClick={() => setShowSOSModal(true)}
-              >
-                <FaExclamationTriangle className="mr-2" />
-                SOS
-              </button>
-              <button 
-                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
-                onClick={() => setShowSignUpModal(true)}
-              >
-                Get Started
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* SOS Modal */}
-      {showSOSModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-red-600">Emergency Support</h2>
-              <button 
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => setShowSOSModal(false)}
-              >
-                ✕
-              </button>
-            </div>
-            
-            {userLocation && (
-              <div className="bg-red-50 p-4 rounded-lg mb-6">
-                <div className="flex items-center space-x-3">
-                  <FaLocationArrow className="text-red-600" />
-                  <div>
-                    <h3 className="font-semibold">Your Current Location</h3>
-                    <p className="text-sm text-gray-600">
-                      Latitude: {userLocation.latitude.toFixed(6)}<br />
-                      Longitude: {userLocation.longitude.toFixed(6)}
-                    </p>
-                    <a 
-                      href={`https://www.google.com/maps?q=${userLocation.latitude},${userLocation.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-red-600 hover:text-red-700"
-                    >
-                      View on Google Maps
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <p className="text-gray-600 mb-6">
-              If you're in immediate distress, please reach out to one of these resources:
-            </p>
-            <div className="space-y-4">
-              {crisisResources.map((resource, index) => (
-                <div key={index} className="bg-red-50 p-4 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="text-2xl">{resource.icon}</div>
-                    <div>
-                      <h3 className="font-semibold">{resource.title}</h3>
-                      <a 
-                        href={`tel:${resource.number}`}
-                        className="text-red-600 hover:text-red-700 block"
-                      >
-                        {resource.number}
-                      </a>
-                      <p className="text-sm text-gray-500">{resource.description}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 text-center">
-              <button 
-                className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                onClick={() => setShowSOSModal(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sign Up Modal */}
-      {showSignUpModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-primary-600">
-                {isSignIn ? "Welcome Back!" : "Create Your Account"}
-              </h2>
-              <button 
-                className="text-gray-500 hover:text-gray-700"
-                onClick={() => setShowSignUpModal(false)}
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {!isSignIn && (
-                <div className="relative">
-                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Full Name"
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  />
-                </div>
-              )}
-              
-              <div className="relative">
-                <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="email"
-                  placeholder="Email Address"
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
-                />
-              </div>
-              
-              <div className="relative">
-                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
-                />
-              </div>
-
-              {!isSignIn && (
-                <div className="relative">
-                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="password"
-                    placeholder="Confirm Password"
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6">
-              <button className="w-full bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors">
-                {isSignIn ? "Sign In" : "Create Account"}
-              </button>
-            </div>
-
-            <div className="mt-4 text-center">
-              <button 
-                className="text-primary-600 hover:text-primary-700"
-                onClick={() => setIsSignIn(!isSignIn)}
-              >
-                {isSignIn ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <>
       {/* Hero Section */}
       <section className="pt-32 pb-16 bg-gradient-to-br from-primary-50 to-secondary-50">
         <div className="container mx-auto px-4">
@@ -465,7 +331,279 @@ const App = () => {
           </div>
         </div>
       </footer>
-    </div>
+    </>
+  );
+};
+
+const App = () => {
+  const [showSOSModal, setShowSOSModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
+  const [collegeInfo, setCollegeInfo] = useState({
+    name: "Your College",
+    counselingCenter: {
+      name: "Campus Counseling Center",
+      number: "1800-765-4321",
+      hours: "24/7"
+    },
+    healthCenter: {
+      name: "Campus Health Center",
+      number: "1800-987-6543",
+      hours: "Mon-Fri: 8AM-8PM"
+    },
+    security: {
+      name: "Campus Security",
+      number: "1800-123-4567",
+      hours: "24/7"
+    }
+  });
+
+  useEffect(() => {
+    // Check if user is authenticated on component mount
+    const checkUser = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setIsAuthenticated(false);
+      }
+    };
+
+    checkUser();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (showSOSModal) {
+      getLocation();
+    }
+  }, [showSOSModal]);
+
+  const getLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+        }
+      );
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const crisisResources = [
+    {
+      icon: <FaPhone className="text-red-600" />,
+      title: "Emergency Helpline",
+      number: "1800-123-4567",
+      description: "24/7 crisis support and counseling"
+    },
+    {
+      icon: <FaGlobe className="text-red-600" />,
+      title: collegeInfo.counselingCenter.name,
+      number: collegeInfo.counselingCenter.number,
+      description: `Available ${collegeInfo.counselingCenter.hours}`
+    },
+    {
+      icon: <FaMapMarkerAlt className="text-red-600" />,
+      title: collegeInfo.healthCenter.name,
+      number: collegeInfo.healthCenter.number,
+      description: `Available ${collegeInfo.healthCenter.hours}`
+    },
+    {
+      icon: <FaLocationArrow className="text-red-600" />,
+      title: collegeInfo.security.name,
+      number: collegeInfo.security.number,
+      description: `Available ${collegeInfo.security.hours}`
+    }
+  ];
+
+  const upcomingEvents = [
+    {
+      title: "Mindfulness Meditation Workshop",
+      date: "May 25, 2025",
+      time: "4:00 PM",
+      location: "Student Wellness Center",
+      description: "Join us for a guided meditation session to reduce stress and improve focus."
+    },
+    {
+      title: "Art Therapy Session",
+      date: "May 28, 2025",
+      time: "3:00 PM",
+      location: "Campus Art Studio",
+      description: "Express yourself through art in a supportive, creative environment."
+    },
+    {
+      title: "Yoga for Stress Relief",
+      date: "May 30, 2025",
+      time: "5:30 PM",
+      location: "Campus Gym",
+      description: "Learn yoga techniques to manage academic stress and improve well-being."
+    }
+  ];
+
+  return (
+    <Router>
+      <div className="min-h-screen">
+        {/* Navigation */}
+        <nav className="fixed w-full bg-white/80 backdrop-blur-sm z-50 border-b">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="text-2xl font-bold text-primary-600">Ebb</div>
+              <div className="hidden md:flex space-x-8">
+                <a href="#features" className="text-gray-600 hover:text-primary-600">Features</a>
+                <a href="#wellness-features" className="text-gray-600 hover:text-primary-600">Hobbies</a>
+                <a href="#events" className="text-gray-600 hover:text-primary-600">Events</a>
+                <a href="#ebboints-journaling" className="text-gray-600 hover:text-primary-600">Ebboints</a>
+                <a href="#faq" className="text-gray-600 hover:text-primary-600">FAQ</a>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button 
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center"
+                  onClick={() => setShowSOSModal(true)}
+                >
+                  <FaExclamationTriangle className="mr-2" />
+                  SOS
+                </button>
+                {isAuthenticated ? (
+                  <button 
+                    className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </button>
+                ) : (
+                  <button 
+                    className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+                    onClick={() => setShowAuthModal(true)}
+                  >
+                    Get Started
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        {/* Auth Modal */}
+        {showAuthModal && (
+          <AuthForm onClose={() => setShowAuthModal(false)} />
+        )}
+
+        {/* SOS Modal */}
+        {showSOSModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-red-600">Emergency Support</h2>
+                <button 
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={() => setShowSOSModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {userLocation && (
+                <div className="bg-red-50 p-4 rounded-lg mb-6">
+                  <div className="flex items-center space-x-3">
+                    <FaLocationArrow className="text-red-600" />
+                    <div>
+                      <h3 className="font-semibold">Your Current Location</h3>
+                      <p className="text-sm text-gray-600">
+                        Latitude: {userLocation.latitude.toFixed(6)}<br />
+                        Longitude: {userLocation.longitude.toFixed(6)}
+                      </p>
+                      <a 
+                        href={`https://www.google.com/maps?q=${userLocation.latitude},${userLocation.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-red-600 hover:text-red-700"
+                      >
+                        View on Google Maps
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-gray-600 mb-6">
+                If you're in immediate distress, please reach out to one of these resources:
+              </p>
+              <div className="space-y-4">
+                {crisisResources.map((resource, index) => (
+                  <div key={index} className="bg-red-50 p-4 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="text-2xl">{resource.icon}</div>
+                      <div>
+                        <h3 className="font-semibold">{resource.title}</h3>
+                        <a 
+                          href={`tel:${resource.number}`}
+                          className="text-red-600 hover:text-red-700 block"
+                        >
+                          {resource.number}
+                        </a>
+                        <p className="text-sm text-gray-500">{resource.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 text-center">
+                <button 
+                  className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                  onClick={() => setShowSOSModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Routes>
+          <Route path="/" element={
+            <LandingPage 
+              showAuthModal={showAuthModal}
+              setShowAuthModal={setShowAuthModal}
+              showSOSModal={showSOSModal}
+              setShowSOSModal={setShowSOSModal}
+              handleLogout={handleLogout}
+              isAuthenticated={isAuthenticated}
+            />
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </Router>
   );
 };
 
